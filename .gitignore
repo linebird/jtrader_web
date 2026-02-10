@@ -1,0 +1,56 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environment
+.venv/
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Editors and IDEs
+.idea/  # JetBrains IDEs (e.g., PyCharm)
+.vscode/ # VS Code
+*.swp
+*~
+.DS_Store # macOS files
+
+# Specific to Flask
+instance/ # Flask instance folder (often contains sensitive data like SQLite DBs)
+.env # Environment variables file
+.flaskenv # Flask-specific environment variables file
+
+# Python-specific
+# pip-wheel metadata
+*.whl
+
+# Unit test / coverage
+.coverage
+.tox/
+htmlcov/
+
+# Flask-Migrate
+migrations/ # If you are using Flask-Migrate and want to manage migrations through Git
+
+# pytest
+.pytest_cache/
