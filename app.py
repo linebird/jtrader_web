@@ -1,3 +1,4 @@
+import os
 from flask import Flask, render_template, request
 from pykrx import stock
 import pandas as pd
@@ -170,4 +171,5 @@ def index():
                                ticker=ticker, from_date=html_from_date, to_date=html_to_date, strategy=strat_name)
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    port = int(os.environ.get("PORT", 10000))
+    app.run(debug=True, host='0.0.0.0', port=port)
