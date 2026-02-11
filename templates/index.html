@@ -2,52 +2,67 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>Stock Analysis Dashboard</title>
+    <title>Multi-Strategy Backtest Dashboard</title>
     {{ resources | safe }}
     <style>
-        body { margin: 0; font-family: sans-serif; background: #f8f9fa; }
-        header { padding: 10px 20px; background: #2c3e50; color: white; display: flex; justify-content: space-between; align-items: center; }
-        nav a { color: #bdc3c7; text-decoration: none; margin-right: 15px; font-weight: bold; }
-        nav a.active { color: #fff; border-bottom: 2px solid #fff; }
-        .stats-bar { display: flex; gap: 30px; background: white; padding: 10px 25px; border-bottom: 1px solid #ddd; }
-        .val { font-weight: bold; color: #27ae60; }
-        input, button { padding: 6px; border-radius: 4px; border: 1px solid #ccc; }
-        button { background: #27ae60; color: white; border: none; cursor: pointer; font-weight: bold; }
+        body { margin: 0; font-family: sans-serif; background-color: #f8f9fa; }
+        header { 
+            background-color: #2c3e50; color: white; padding: 10px 20px; 
+            display: flex; justify-content: space-between; align-items: center; 
+        }
+        .search-form { display: flex; gap: 12px; align-items: center; }
+        .search-form div { display: flex; flex-direction: column; }
+        label { font-size: 0.7rem; color: #bdc3c7; margin-bottom: 2px; }
+        input, select { padding: 5px; border-radius: 4px; border: none; font-size: 0.9rem; }
+        button { 
+            padding: 8px 15px; background-color: #27ae60; color: white; border: none; 
+            border-radius: 4px; cursor: pointer; font-weight: bold; margin-top: 12px;
+        }
+        .stats-bar { display: flex; justify-content: space-around; background: white; padding: 10px; border-bottom: 1px solid #ddd; }
+        .stat-value { font-weight: bold; color: #27ae60; font-size: 1.1rem; }
     </style>
 </head>
 <body>
+
     <header>
-        <div>
-            <span style="font-size: 1.3rem; margin-right: 20px;">STOCK DASHBOARD</span>
-            <nav style="display: inline;">
-                <!-- 현재 페이지에 따라 하이라이트 
-                <a href="/" class="{{ 'active' if strategy == 'SMA' else '' }}">SMA (일봉)</a>
-                <a href="/vwap" class="{{ 'active' if strategy == 'VWAP' else '' }}">VWAP (15분봉)</a>
-                -->
-            </nav>
-        </div>
-        <form method="POST">
-            <input type="text" name="ticker" value="{{ ticker }}" style="width: 80px;">
-            {% if strategy == 'SMA' %}
+        <div style="font-size: 1.3rem; font-weight: bold;">K-Stock Dashboard</div>
+        <form method="POST" class="search-form">
+            <div>
+                <label>전략 선택</label>
+                <select name="strategy">
+                    <option value="slope" {% if strategy == 'slope' %}selected{% endif %}>이평선 기울기</option>
+                    <option value="cross" {% if strategy == 'cross' %}selected{% endif %}>골든크로스(5/20)</option>
+                </select>
+            </div>
+            <div>
+                <label>종목코드</label>
+                <input type="text" name="ticker" value="{{ ticker }}" style="width: 70px;">
+            </div>
+            <div>
+                <label>시작일</label>
                 <input type="date" name="from_date" value="{{ from_date }}">
+            </div>
+            <div>
+                <label>종료일</label>
                 <input type="date" name="to_date" value="{{ to_date }}">
-            {% endif %}
-            <button type="submit">조회</button>
+            </div>
+            <button type="submit">테스트 실행</button>
         </form>
     </header>
 
     {% if stats %}
     <div class="stats-bar">
-        <div>현재 전략: <b>{{ strategy }}</b></div>
-        <div>총 수익률: <span class="val">{{ stats.Return }}</span></div>
-        <div>승률: <span class="val">{{ stats.WinRate }}</span></div>
-        <div>거래수: <span class="val">{{ stats.Trades }}</span></div>
+        <div>수익률: <span class="stat-value">{{ stats.Return }}</span></div>
+        <div>승률: <span class="stat-value">{{ stats.WinRate }}</span></div>
+        <div>거래횟수: <span class="stat-value">{{ stats.Trades }}</span></div>
     </div>
     {% endif %}
 
     <div style="width: 100%;">
         {{ div | safe }}
     </div>
+
     {{ script | safe }}
+
 </body>
 </html>
