@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>종목 필터링</title>
+    <style>
+        body { font-family: sans-serif; margin: 20px; background: #f4f7f6; }
+        .filter-section { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        .grid-form { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; }
+        .grid-form div { display: flex; flex-direction: column; }
+        label { font-size: 0.8rem; color: #666; margin-bottom: 4px; }
+        input { padding: 8px; border: 1px solid #ddd; border-radius: 4px; }
+        button { grid-column: span 4; padding: 10px; background: #27ae60; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        table { width: 100%; border-collapse: collapse; background: white; }
+        th, td { padding: 12px; border: 1px solid #ddd; text-align: right; }
+        th { background: #eee; text-align: center; }
+        .text-center { text-align: center; }
+        .plus { color: #e74c3c; }
+        .minus { color: #3498db; }
+        tbody tr { cursor: pointer; transition: background 0.2s; }
+        tbody tr:hover { background-color: #f1f1f1; }
+    </style>
+</head>
+<body>
+
+    <h2>종목 필터링 (기준일: {{ date }})</h2>
+
+    <div class="filter-section">
+        <form method="POST" class="grid-form">
+            <div><label>기준 날짜</label><input type="date" name="date" value="{{ date }}"></div>
+            <div><label>최소 종가</label><input type="number" name="min_close" value="{{ params.min_close }}"></div>
+            <div><label>최대 종가</label><input type="number" name="max_close" value="{{ params.max_close }}"></div>
+            <div><label>최소 등락률(%)</label><input type="number" step="0.1" name="min_change" value="{{ params.min_change }}"></div>
+            
+            <div><label>최소 거래량</label><input type="number" name="min_volume" value="{{ params.min_volume }}"></div>
+            <div><label>최소 거래대금(원)</label><input type="number" name="min_amount" value="{{ params.min_amount }}" placeholder="단위: 원"></div>
+            <div><label>최대 등락률(%)</label><input type="number" step="0.1" name="max_change" value="{{ params.max_change }}"></div>
+            
+            <button type="submit">조건 검색 실행</button>
+        </form>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>티커</th>
+                <th>종목명</th>
+                <th>종가</th>
+                <th>등락률</th>
+                <th>거래량</th>
+                <th>거래대금</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for t in tickers %}
+            <!-- ondblclick 이벤트 추가: 해당 티커를 인자로 함수 호출 -->
+            <tr ondblclick="goToChart('{{ t.티커 }}')" title="더블클릭 시 차트로 이동">
+                <td class="text-center">{{ t.티커 }}</td>
+                <td class="text-center"><b>{{ t.종목명 }}</b></td>
+                <td>{{ "{:,.0f}".format(t.종가) }}</td>
+                <td class="{% if t.등락률 > 0 %}plus{% elif t.등락률 < 0 %}minus{% endif %}">
+                    {{ t.등락률 }}%
+                </td>
+                <td>{{ "{:,.0f}".format(t.거래량) }}</td>
+                <td>{{ "{:,.0f}".format(t.거래대금) }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+</body>
+
+<!-- JavaScript 추가 -->
+<script>
+    function goToChart(tickerCode) {
+        // 메인 차트 페이지(/)로 티커 정보를 쿼리 스트링으로 보냄
+        window.location.href = "/?ticker=" + tickerCode;
+    }
+</script>
+
+</html>
