@@ -11,10 +11,16 @@ from bokeh.models import HoverTool, ColumnDataSource
 from backtesting import Backtest
 
 # --- [중요] 전략 모듈 임포트 ---
+from strategies.fibonacci_strategy import FibonacciStrategy
 from strategies.macd_strategy import MACD_Indicator, MacdStrategy
+from strategies.rsi_divergence import RsiDivergenceStrategy
+from strategies.rsi_strategy import RSI_Indicator, RsiStrategy
+from strategies.rsi_support_strategy import RsiSupportStrategy
 from strategies.sma_strategies import SmaSlopeStrategy, SmaCrossStrategy
 from strategies.custom_strategies import ComplexTrendStrategy
-from strategies.adx_strategy import AdxStrategy, ADX_Indicator   # ADX 전략 임포트
+from strategies.adx_strategy import AdxStrategy, ADX_Indicator
+from strategies.sr_flip_strategy import SrFlipStrategy
+from strategies.volatility_breakout import VolatilityBreakout   # ADX 전략 임포트
 
 # 전략 매핑 딕셔너리 (임포트한 클래스 사용)
 STRATEGIES = {
@@ -22,7 +28,13 @@ STRATEGIES = {
     'cross': SmaCrossStrategy,
     'complex': ComplexTrendStrategy,
     'adx': AdxStrategy,
-    'macd': MacdStrategy
+    'macd': MacdStrategy,
+    'rsi': RsiStrategy,
+    'rsi_div': RsiDivergenceStrategy,
+    'rsi_support': RsiSupportStrategy,
+    'v_breakout': VolatilityBreakout,
+    'fibonacci': FibonacciStrategy,
+    'sr_flip': SrFlipStrategy
 }
 
 # 1. 블루프린트 생성 (이름: stock, URL 접두사 설정을 위해 사용)
@@ -58,23 +70,44 @@ def index():
         df.index.name = 'Date'
 
         # 2. 백테스트 실행 (임포트된 전략 클래스 적용)
-        bt = Backtest(df, selected_strat, cash=1000000, commission=.002)
+        bt = Backtest(df, selected_strat, cash=10000000, commission=.002)
         stats = bt.run()
         
         # 3. 차트용 데이터 가공 (기존 로직 100% 동일)
         plot_df = df.reset_index()
+
+        # [시각화용] 피보나치 라인 계산
+        lookback = 50
+        plot_df['HH'] = plot_df['High'].rolling(lookback).max().shift(1)
+        plot_df['LL'] = plot_df['Low'].rolling(lookback).min().shift(1)
+        diff = plot_df['HH'] - plot_df['LL']
+        
+        plot_df['Fib382'] = plot_df['HH'] - diff * 0.382
+        plot_df['Fib500'] = plot_df['HH'] - diff * 0.500
+        plot_df['Fib618'] = plot_df['HH'] - diff * 0.618
+        # [시각화용] 변동성 돌파 타겟 라인 계산
+        prev_range = (plot_df['High'] - plot_df['Low']).shift(1)
+        plot_df['Target'] = plot_df['Open'] + (prev_range * 0.5) # k=0.5 기준
+        # 저항선 계산 (시각화용)
+        plot_df['Resistance'] = plot_df['High'].rolling(window=20).max().shift(1)
+        # 차트 표시용 RSI 계산
+        plot_df['RSI'] = RSI_Indicator(plot_df['Close'])
         # 차트 표시용 ADX 계산
         adx_vals, p_di, m_di = ADX_Indicator(plot_df['High'], plot_df['Low'], plot_df['Close'])
         plot_df['ADX'], plot_df['PlusDI'], plot_df['MinusDI'] = adx_vals, p_di, m_di
         # plot_df에 MACD 지표 추가 (차트 출력용)
         m_line, s_line, h_bar = MACD_Indicator(plot_df['Close'])
         plot_df['MACD'], plot_df['MACD_Signal'], plot_df['MACD_Hist'] = m_line, s_line, h_bar
+        # RSI 계산 (차트 표시용)
+        plot_df['RSI'] = RSI_Indicator(plot_df['Close'])
 
         plot_df['SMA20'] = plot_df['Close'].rolling(window=20).mean()
+        plot_df['SMA60'] = plot_df['Close'].rolling(window=60).mean()
         plot_df['SMA200'] = plot_df['Close'].rolling(window=200).mean()
         if strat_name == 'cross':
             plot_df['SMA5'] = plot_df['Close'].rolling(window=5).mean()
         plot_df['color'] = ["#26a69a" if c >= o else "#ef5350" for o, c in zip(plot_df.Open, plot_df.Close)]
+    
         source = ColumnDataSource(plot_df)
 
         equity_df = stats['_equity_curve'].reset_index()
@@ -96,13 +129,27 @@ def index():
         w = 12 * 60 * 60 * 1000
         p1.segment('Date', 'High', 'Date', 'Low', color="black", source=source)
         candle_r = p1.vbar('Date', w, 'Open', 'Close', fill_color='color', line_color='color', source=source, alpha=0.5)
-        sma20_r = p1.line('Date', 'SMA20', source=source, color='orange', line_width=2, legend_label="SMA 20")        
-
+        sma20_r = p1.line('Date', 'SMA20', source=source, color='orange', line_width=2, legend_label="SMA 20")
+        sma60_r = p1.line('Date', 'SMA60', source=source, color='purple', line_width=1.5, legend_label="SMA 60")
+        p1.line('Date', 'SMA60', source=source, color='purple', line_width=1.5, legend_label="SMA 60")
         p1.line('Date', 'SMA20', source=source, color='orange', line_width=2, legend_label="SMA 20")
         if strat_name == 'cross':
             p1.line('Date', 'SMA5', source=source, color='blue', line_width=1.5, legend_label="SMA 5")
         p1.line('Date', 'SMA200', source=source, color='red', line_dash='dashed', legend_label="SMA 200")
-
+        
+        if strat_name == 'sr_flip':
+            # 저항선 그리기 (회색 점선)
+            p1.step('Date', 'Resistance', source=source, color='gray', line_dash='dashed', legend_label="Resistance Level")
+        elif strat_name == 'v_breakout':
+            # 매수 타겟 라인 (검은색 점선 계단형)
+            p1.step('Date', 'Target', source=source, color='black', line_dash='dotted', 
+                    line_alpha=0.6, legend_label="Breakout Target")
+        elif strat_name == 'fibonacci':
+            # 피보나치 되돌림 레벨 (0.382, 0.500, 0.618) 그리기
+            p1.line('Date', 'Fib382', source=source, color='blue', line_dash='dashed', legend_label="Fib 38.2%")
+            p1.line('Date', 'Fib500', source=source, color='green', line_dash='dashed', legend_label="Fib 50.0%")
+            p1.line('Date', 'Fib618', source=source, color='red', line_dash='dashed', legend_label="Fib 61.8%")
+    
         # --- [범례 위치 및 스타일 설정] ---
         p1.legend.location = "top_left"      # 범례를 왼쪽 상단으로 이동
         p1.legend.click_policy = "hide"      # 범례 클릭 시 해당 지표 숨기기 기능
@@ -141,11 +188,20 @@ def index():
             point_policy='snap_to_data' # 마커가 선에 딱 붙어서 표시됨
         )
         
+        # 이평선 전용 툴팁 (기존 유지)
+        hover_sma60 = HoverTool(
+            renderers=[sma60_r], # 만약 sma60_r 변수가 있다면
+            tooltips=[("이평선", "SMA 60"), ("가격", "$y{0,0}")], 
+            mode='mouse',  # 마우스가 이평선 위에 올라가면 팝업
+            attachment='right',     # 툴팁 박스가 마우스 오른쪽에 나타남
+            point_policy='snap_to_data' # 마커가 선에 딱 붙어서 표시됨
+        )
+        
         # [생략된 부분 예시]
         p1.add_tools(hover_candle)
         p1.add_tools(hover_sma)
+        p1.add_tools(hover_sma60)
         p1.xaxis.visible = False
-
 
         # --- [신규 추가] P5: 거래량 차트 ---
         p5 = figure(x_axis_type='datetime', x_range=p1.x_range, height=150, title="거래량", sizing_mode='stretch_width')
@@ -157,10 +213,6 @@ def index():
         ], formatters={'@Date': 'datetime'}, mode='vline'))
         p5.xaxis.visible = False
         p5.yaxis.axis_label = "Volume"
-
-
-
-
 
         p2 = figure(x_axis_type='datetime', x_range=p1.x_range, height=280, title="자산 변화 및 매매 타점", sizing_mode='stretch_width')
         equity_line = p2.line('Date', 'Equity', source=equity_source, color='blue', line_width=2, legend_label="Equity")
@@ -211,6 +263,56 @@ def index():
             p4.xaxis.visible = False
             p4.legend.location = "top_left"
             p4.legend.orientation = "horizontal"
+            layout = column(p1, p5, p2, p4, p3, sizing_mode='stretch_width')
+        elif strat_name == 'rsi':
+            # --- [신규 추가] P6: RSI 전용 차트 ---
+            p4 = figure(x_axis_type='datetime', x_range=p1.x_range, height=180, 
+                        title="RSI (상대강도지수)", sizing_mode='stretch_width', y_range=(0, 100))
+            
+            # RSI 메인 선
+            rsi_line = p4.line('Date', 'RSI', source=source, color='purple', line_width=1.5, legend_label="RSI (14)")
+            
+            # 과매수/과매도 가이드 라인 (30, 70)
+            from bokeh.models import Span
+            p4.add_layout(Span(location=70, dimension='width', line_color='red', line_dash='dashed', line_alpha=0.5))
+            p4.add_layout(Span(location=30, dimension='width', line_color='green', line_dash='dashed', line_alpha=0.5))
+
+            # RSI 툴팁 (겹침 방지 위해 attachment 설정)
+            p4.add_tools(HoverTool(renderers=[rsi_line], tooltips=[
+                ("날짜", "@Date{%F}"), ("RSI", "@RSI{0.0}")
+            ], formatters={'@Date': 'datetime'}, mode='vline', attachment='left'))
+            
+            p4.xaxis.visible = False
+            p4.legend.location = "top_left"
+            layout = column(p1, p5, p2, p4, p3, sizing_mode='stretch_width')
+        elif strat_name == 'rsi_div':
+            # --- P6: RSI 차트 (다이버전스 강조) ---
+            p4 = figure(x_axis_type='datetime', x_range=p1.x_range, height=200, 
+                        title="RSI 다이버전스 지표", sizing_mode='stretch_width', y_range=(0, 100))
+            
+            rsi_l = p4.line('Date', 'RSI', source=source, color='#8E44AD', line_width=2, legend_label="RSI")
+            
+            # 기준선 (30, 70)
+            from bokeh.models import Span
+            p4.add_layout(Span(location=70, dimension='width', line_color='red', line_dash='dashed', line_alpha=0.5))
+            p4.add_layout(Span(location=30, dimension='width', line_color='green', line_dash='dashed', line_alpha=0.5))
+            
+            p4.add_tools(HoverTool(renderers=[rsi_l], tooltips=[("날짜", "@Date{%F}"), ("RSI", "@RSI{0.1}")], 
+                                formatters={'@Date': 'datetime'}, mode='vline'))
+
+            layout = column(p1, p5, p2, p4, p3, sizing_mode='stretch_width')
+        elif strat_name == 'rsi_support':
+            # P6: RSI (지지 구간 강조)
+            p4 = figure(x_axis_type='datetime', x_range=p1.x_range, height=200, title="RSI 40-50 지지 분석", sizing_mode='stretch_width')
+            p4.line('Date', 'RSI', source=source, color='purple', line_width=2)
+            
+            # 가이드라인 추가
+            from bokeh.models import Span
+            p4.add_layout(Span(location=70, dimension='width', line_color='red', line_dash='dashed'))
+            p4.add_layout(Span(location=50, dimension='width', line_color='orange', line_dash='dotted', line_alpha=0.6)) # 상단 지지선
+            p4.add_layout(Span(location=40, dimension='width', line_color='orange', line_dash='dotted', line_alpha=0.6)) # 하단 지지선
+            p4.add_layout(Span(location=30, dimension='width', line_color='green', line_dash='dashed'))
+
             layout = column(p1, p5, p2, p4, p3, sizing_mode='stretch_width')
         else:
             layout = column(p1, p5, p2, p3, sizing_mode='stretch_width')
