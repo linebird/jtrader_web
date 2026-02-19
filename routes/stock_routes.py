@@ -1,4 +1,5 @@
 from flask import Blueprint, render_template, request
+from matplotlib.pylab import source
 from pykrx import stock
 import pandas as pd
 from datetime import datetime, timedelta
@@ -95,11 +96,18 @@ def index():
         w = 12 * 60 * 60 * 1000
         p1.segment('Date', 'High', 'Date', 'Low', color="black", source=source)
         candle_r = p1.vbar('Date', w, 'Open', 'Close', fill_color='color', line_color='color', source=source, alpha=0.5)
-        
+        sma20_r = p1.line('Date', 'SMA20', source=source, color='orange', line_width=2, legend_label="SMA 20")        
+
         p1.line('Date', 'SMA20', source=source, color='orange', line_width=2, legend_label="SMA 20")
         if strat_name == 'cross':
             p1.line('Date', 'SMA5', source=source, color='blue', line_width=1.5, legend_label="SMA 5")
         p1.line('Date', 'SMA200', source=source, color='red', line_dash='dashed', legend_label="SMA 200")
+
+        # --- [범례 위치 및 스타일 설정] ---
+        p1.legend.location = "top_left"      # 범례를 왼쪽 상단으로 이동
+        p1.legend.click_policy = "hide"      # 범례 클릭 시 해당 지표 숨기기 기능
+        p1.legend.background_fill_alpha = 0.5 # 범례 배경을 살짝 투명하게 (차트 가림 방지)
+        p1.legend.label_text_font_size = "9pt" # 범례 글자 크기 조절 (선택 사항)
         
         # 매매 연결선 (파이프 점선 패턴 적용)
         if not trades.empty:
@@ -107,13 +115,52 @@ def index():
                        line_dash='dash_pattern', line_color='#7f8c8d', line_width=1.5,
                        source=trade_source, legend_label="매매 연결선")
 
-        # ... (이후 툴팁 및 P2, P3 생성 로직은 이전과 완전히 동일) ...
-        # (지면 관계상 생략하지만, 기존의 p1.add_tools, p2, p3 코드를 그대로 넣으시면 됩니다)
+        # 캔들 전용 툴팁 (기존 유지)
+        hover_candle = HoverTool(
+            renderers=[candle_r], 
+            tooltips=[
+                ("날짜", "@Date{%F}"),
+                ("시가", "@Open{0,0}"),
+                ("고가", "@High{0,0}"),
+                ("저가", "@Low{0,0}"),
+                ("종가", "@Close{0,0}"),
+                ("거래량", "@Volume{0,0}")
+            ], 
+            formatters={'@Date': 'datetime'}, 
+            mode='vline',  # 세로선상에 마우스가 있으면 팝업
+            attachment='left',      # 툴팁 박스가 마우스 왼쪽에 나타남
+            show_arrow=True         # 박스 방향 화살표 표시
+        )
+        
+        # 이평선 전용 툴팁 (기존 유지)
+        hover_sma = HoverTool(
+            renderers=[sma20_r], # 만약 sma20_r 변수가 있다면
+            tooltips=[("이평선", "SMA 20"), ("가격", "$y{0,0}")], 
+            mode='mouse',  # 마우스가 이평선 위에 올라가면 팝업
+            attachment='right',     # 툴팁 박스가 마우스 오른쪽에 나타남
+            point_policy='snap_to_data' # 마커가 선에 딱 붙어서 표시됨
+        )
         
         # [생략된 부분 예시]
-        p1.add_tools(HoverTool(renderers=[candle_r], tooltips=[("날짜", "@Date{%F}"), ("종가", "@Close{0,0}")], 
-                               formatters={'@Date': 'datetime'}, mode='vline'))
+        p1.add_tools(hover_candle)
+        p1.add_tools(hover_sma)
         p1.xaxis.visible = False
+
+
+        # --- [신규 추가] P5: 거래량 차트 ---
+        p5 = figure(x_axis_type='datetime', x_range=p1.x_range, height=150, title="거래량", sizing_mode='stretch_width')
+        # 주가 색상과 동일하게 거래량 막대 표시
+        p5.vbar('Date', w, top='Volume', fill_color='color', line_color=None, source=source, alpha=0.7)
+        
+        p5.add_tools(HoverTool(tooltips=[
+            ("날짜", "@Date{%F}"), ("거래량", "@Volume{0,0}")
+        ], formatters={'@Date': 'datetime'}, mode='vline'))
+        p5.xaxis.visible = False
+        p5.yaxis.axis_label = "Volume"
+
+
+
+
 
         p2 = figure(x_axis_type='datetime', x_range=p1.x_range, height=280, title="자산 변화 및 매매 타점", sizing_mode='stretch_width')
         equity_line = p2.line('Date', 'Equity', source=equity_source, color='blue', line_width=2, legend_label="Equity")
@@ -146,7 +193,7 @@ def index():
             p4.line('Date', 'PlusDI', source=source, color='green', legend_label="+DI")
             p4.line('Date', 'MinusDI', source=source, color='red', legend_label="-DI")
             p4.legend.location = "top_left"
-            layout = column(p1, p2, p3, p4, sizing_mode='stretch_width')
+            layout = column(p1, p5, p2, p3, p4, sizing_mode='stretch_width')
         elif strat_name == 'macd':
             # --- [추가] P4: MACD 전용 차트 ---
             p4 = figure(x_axis_type='datetime', x_range=p1.x_range, height=200, 
@@ -164,9 +211,9 @@ def index():
             p4.xaxis.visible = False
             p4.legend.location = "top_left"
             p4.legend.orientation = "horizontal"
-            layout = column(p1, p2, p4, p3, sizing_mode='stretch_width')
+            layout = column(p1, p5, p2, p4, p3, sizing_mode='stretch_width')
         else:
-            layout = column(p1, p2, p3, sizing_mode='stretch_width')
+            layout = column(p1, p5, p2, p3, sizing_mode='stretch_width')
 
         script, div = components(layout)
         summary = {"Return": f"{stats['Return [%]']:.2f}%", "WinRate": f"{stats['Win Rate [%]']:.2f}%", "Trades": len(trades)}
