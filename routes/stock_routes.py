@@ -20,7 +20,8 @@ from strategies.sma_strategies import SmaSlopeStrategy, SmaCrossStrategy
 from strategies.custom_strategies import ComplexTrendStrategy
 from strategies.adx_strategy import AdxStrategy, ADX_Indicator
 from strategies.sr_flip_strategy import SrFlipStrategy
-from strategies.volatility_breakout import VolatilityBreakout   # ADX 전략 임포트
+from strategies.volatility_breakout import VolatilityBreakout
+from strategies.vwap_strategy import VWAP_Indicator, VwapStrategy   # ADX 전략 임포트
 
 # 전략 매핑 딕셔너리 (임포트한 클래스 사용)
 STRATEGIES = {
@@ -34,6 +35,7 @@ STRATEGIES = {
     'rsi_support': RsiSupportStrategy,
     'v_breakout': VolatilityBreakout,
     'fibonacci': FibonacciStrategy,
+    'vwap': VwapStrategy,
     'sr_flip': SrFlipStrategy
 }
 
@@ -76,12 +78,15 @@ def index():
         # 3. 차트용 데이터 가공 (기존 로직 100% 동일)
         plot_df = df.reset_index()
 
+        # [시각화용] VWAP 계산
+        plot_df['VWAP'] = VWAP_Indicator(
+            plot_df['High'], plot_df['Low'], plot_df['Close'], plot_df['Volume']
+        )
         # [시각화용] 피보나치 라인 계산
         lookback = 50
         plot_df['HH'] = plot_df['High'].rolling(lookback).max().shift(1)
         plot_df['LL'] = plot_df['Low'].rolling(lookback).min().shift(1)
-        diff = plot_df['HH'] - plot_df['LL']
-        
+        diff = plot_df['HH'] - plot_df['LL']        
         plot_df['Fib382'] = plot_df['HH'] - diff * 0.382
         plot_df['Fib500'] = plot_df['HH'] - diff * 0.500
         plot_df['Fib618'] = plot_df['HH'] - diff * 0.618
@@ -149,6 +154,9 @@ def index():
             p1.line('Date', 'Fib382', source=source, color='blue', line_dash='dashed', legend_label="Fib 38.2%")
             p1.line('Date', 'Fib500', source=source, color='green', line_dash='dashed', legend_label="Fib 50.0%")
             p1.line('Date', 'Fib618', source=source, color='red', line_dash='dashed', legend_label="Fib 61.8%")
+        elif strat_name == 'vwap':
+            # VWAP 라인 그리기 (검은색 실선)
+            p1.line('Date', 'VWAP', source=source, color='black', line_width=2, legend_label="VWAP")
     
         # --- [범례 위치 및 스타일 설정] ---
         p1.legend.location = "top_left"      # 범례를 왼쪽 상단으로 이동

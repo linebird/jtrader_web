@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>ETF 종목 필터링</title>
+    <style>
+        body { font-family: sans-serif; margin: 0; background: #f4f7f6; }
+        header { background: #2c3e50; color: white; padding: 15px 25px; display: flex; justify-content: space-between; align-items: center; }
+        header a { color: #bdc3c7; text-decoration: none; font-size: 0.9rem; border: 1px solid #455a64; padding: 5px 12px; border-radius: 4px; }
+        .container { padding: 20px; }
+        .filter-box { background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .filter-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 15px; }
+        .filter-grid div { display: flex; flex-direction: column; }
+        input { padding: 8px; border: 1px solid #ddd; border-radius: 4px; }
+        button { padding: 10px; background: #27ae60; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        table { width: 100%; border-collapse: collapse; background: white; }
+        th, td { padding: 10px; border: 1px solid #ddd; text-align: right; font-size: 0.9rem; }
+        th { background: #eee; text-align: center; }
+        tbody tr { cursor: pointer; }
+        tbody tr:hover { background-color: #f1f1f1; }
+        .plus { color: #e74c3c; }
+        .minus { color: #3498db; }
+        .text-center { text-align: center; }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div style="display: flex; align-items: center; gap: 20px;">
+            <div style="font-size: 1.4rem; font-weight: bold;">ETF Scanner</div>
+            <a href="{{ url_for('stock.index') }}">← 차트 분석 홈</a>
+            <a href="{{ url_for('ticker.ticker_list') }}">주식 필터링</a>
+        </div>
+        <span>행 더블클릭 시 차트 이동</span>
+    </header>
+
+    <div class="container">
+        <div class="filter-box">
+            <form method="POST" class="filter-grid">
+                <div><label>기준일</label><input type="date" name="date" value="{{ date }}"></div>
+                <div><label>최소 종가</label><input type="number" step="10" name="min_close" value="{{ params.min_close }}"></div>
+                <div><label>최대 종가</label><input type="number" step="10" name="max_close" value="{{ params.max_close }}"></div>
+                <div><label>최소 등락(%)</label><input type="number" step="0.1" name="min_change" value="{{ params.min_change }}"></div>
+                <div><label>최소 거래량</label><input type="number" name="min_volume" value="{{ params.min_volume }}"></div>
+                <div><label>최소 거래대금</label><input type="number" name="min_amount" value="{{ params.min_amount }}"></div>
+                <button type="submit">ETF 필터링</button>
+            </form>
+        </div>
+
+        <div style="margin-bottom: 10px; font-weight: bold;">
+            전체 ETF: <span style="color: #e74c3c;">{{ total_count }}</span> 종목
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>티커</th>
+                    <th>종목명</th>
+                    <th>시가</th>
+                    <th>종가</th>
+                    <th>등락률</th>
+                    <th>거래량</th>
+                    <th>거래대금</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for e in etfs %}
+                <tr ondblclick="location.href='/?ticker={{ e.ticker }}'">
+                    <td class="text-center">{{ e.ticker }}</td>
+                    <td class="text-center"><b>{{ e.name }}</b></td>
+                    <td>{{ "{:,.0f}".format(e.open | default(0)) }}</td>
+                    <td>{{ "{:,.0f}".format(e.close | default(0)) }}</td>
+                    <td class="{% if e.change_rate > 0 %}plus{% elif e.change_rate < 0 %}minus{% endif %}">
+                        {{ e.change_rate | default(0) }}%
+                    </td>
+                    <td>{{ "{:,.0f}".format(e.volume | default(0)) }}</td>
+                    <td>{{ "{:,.0f}".format(e.amount | default(0)) }}</td>
+                </tr>
+
+
+                {% else %}
+                <tr><td colspan="8" class="text-center">조건에 맞는 ETF가 없습니다.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+</body>
+</html>
